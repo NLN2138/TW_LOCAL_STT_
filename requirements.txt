@@ -1,0 +1,8 @@
+streamlit>=1.30.0
+torch
+transformers
+accelerate
+datasets
+librosa
+soundfile
+torchaudio
