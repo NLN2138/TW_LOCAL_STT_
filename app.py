@@ -6,12 +6,12 @@ from transformers import pipeline
 
 # 1. 頁面設定
 st.set_page_config(
-    page_title="台灣議會語音轉文字系統 (聯發科 Breeze-ASR)",
+    page_title="台灣政治言談語音轉文字系統 (聯發科 Breeze-ASR)",
     page_icon="🎙️",
     layout="wide"
 )
 
-st.title("🎙️ 台灣政治言談場域語音轉文字 (ASR) 工具")
+st.title("🎙️ 台灣政治言談語音轉文字 (ASR) 工具")
 st.markdown("本工具採用 **MediaTek Research Breeze-ASR** 模型，專為台灣口音、中台語夾雜與地方語境優化。")
 
 # 2. 模型載入機制 (使用 cache 防止重複載入)
