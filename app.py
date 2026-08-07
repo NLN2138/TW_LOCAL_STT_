@@ -12,7 +12,7 @@ from faster_whisper import WhisperModel
 # 1. 頁面配置與自訂美化 CSS
 # ==========================================
 st.set_page_config(
-    page_title="台灣政治言談 ASR 與語料庫分析系統",
+    page_title="台灣政治言談語音轉文字與語料庫分析系統",
     page_icon="🎙️",
     layout="wide"
 )
