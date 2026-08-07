@@ -67,7 +67,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 頁頭主標題
-st.markdown('<p class="main-title">🎙️ 台灣政治言談語音轉文字與語料庫分析系統</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">🎙️ 台灣政治言談語音轉文字與語料庫分析系統 v1.0 （雛形）</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">專為語言學與政治言談研究設計 | 整合 faster-whisper ASR 與客觀語料庫敘述統計 (PMM, KWIC, TF-IDF)</p>', unsafe_allow_html=True)
 
 try:
@@ -213,7 +213,7 @@ with st.container(border=True):
         st.markdown("**🎯 關注焦點詞設定**")
         user_keywords_input = st.text_input(
             "請輸入研究關注詞彙（以逗號分隔）：",
-            placeholder="例如：台灣, 中華民國, 中國大陸",
+            placeholder="例如：建設, 交通, 民生",
             value=""
         )
         if user_keywords_input.strip():
