@@ -17,28 +17,42 @@ st.set_page_config(
     layout="wide"
 )
 
-# 透過自訂 CSS 調優字體、間距與標題層級（標題顏色為白色）
+# 透過自訂 CSS 置頂固定頁首標題，並調優字體、間距與標題層級
 st.markdown("""
     <style>
-    /* 調整全局容器邊界與背景 */
+    /* 固定頂部標題區塊 */
+    .header-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        background-color: #0E1117; /* 搭配預設深色背景，滾動時內容不會透出 */
+        padding: 1.5rem 5rem 1rem 5rem;
+        z-index: 99999;
+        border-bottom: 1px solid #1E293B;
+    }
+
+    /* 調整全局容器頂部邊界，避免內容被固定的 Header 遮擋 */
     .block-container {
-        padding-top: 2rem;
+        padding-top: 130px !important;
         padding-bottom: 3rem;
         max-width: 1200px;
     }
     
     /* 大標題樣式 - 純白 */
     .main-title {
-        font-size: 2.2rem !important;
+        font-size: 2.0rem !important;
         font-weight: 700 !important;
         color: #FFFFFF !important;
         margin-bottom: 0.2rem !important;
+        line-height: 1.2 !important;
     }
+    
     /* 副標題樣式 - 淺灰白 */
     .sub-title {
-        font-size: 1.05rem !important;
+        font-size: 0.95rem !important;
         color: #E2E8F0 !important;
-        margin-bottom: 1.8rem !important;
+        margin-bottom: 0rem !important;
     }
 
     /* 區塊標題（Section Titles）樣式 - 純白 */
@@ -67,9 +81,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 頁頭主標題
-st.markdown('<p class="main-title">🎙️ 台灣政治言談語音轉文字與語料庫分析系統 v1.0 （雛形）</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">專為語言學與政治言談研究設計 | 整合 faster-whisper ASR 與客觀語料庫敘述統計 (PMM, KWIC, TF-IDF)</p>', unsafe_allow_html=True)
+# 頁頭固定置頂大標題區塊
+st.markdown("""
+    <div class="header-container">
+        <p class="main-title">🎙️ 台灣政治言談語音轉文字與語料庫分析系統 v1.0 （雛形）</p>
+        <p class="sub-title">專為語言學與政治言談研究設計 | 整合 faster-whisper ASR 與客觀語料庫敘述統計 (PMM, KWIC, TF-IDF)</p>
+    </div>
+""", unsafe_allow_html=True)
 
 try:
     import jieba
@@ -113,7 +131,7 @@ def refine_taiwan_terms(text: str) -> str:
     # 步驟 1: 異體字統一標準化
     text = text.replace("臺灣", "台灣")
     
-    # 步驟 2: 長詞優先正則與對應（確保中華民國、中國大陸不被誤校正）
+    # 步驟 2: 長詞優先正則與對應
     replacements = [
         (r"中華民國", "中華民國"),
         (r"中國大陸", "中國大陸"),
