@@ -3,3 +3,4 @@ faster-whisper
 librosa
 jieba
 pandas
+scikit-learn
