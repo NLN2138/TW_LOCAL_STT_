@@ -221,7 +221,7 @@ with st.container(border=True):
             st.caption(f"📌 當前採用關鍵詞：`{', '.join(current_keywords)}`")
         else:
             current_keywords = DEFAULT_KEYWORDS_LIST
-            st.caption(f"💡 留空啟用預設關鍵詞：`{', '.join(DEFAULT_KEYWORDS_LIST)}`")
+            st.caption(f"💡 未填寫則啟用預設關鍵詞：`{', '.join(DEFAULT_KEYWORDS_LIST)}`")
 
     with col_up:
         st.markdown("**📁 語音檔案選擇**")
