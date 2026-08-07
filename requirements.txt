@@ -1,4 +1,5 @@
 streamlit>=1.30.0
 faster-whisper
-soundfile
 librosa
+jieba
+pandas
