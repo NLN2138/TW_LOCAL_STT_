@@ -186,7 +186,7 @@ if uploaded_file is not None:
                     initial_prompt=full_custom_prompt # 注入含使用者關鍵詞的 Prompt
                 )
 
-                st.subheader("📝 第二步：辨識結果與逐字稿")
+                st.subheader("📝 辨識結果與逐字稿")
                 full_text_list = []
                 
                 with st.expander("檢視逐字稿時間軸", expanded=True):
@@ -220,7 +220,7 @@ if uploaded_file is not None:
 # ==========================================
 if "full_text" in st.session_state and st.session_state["full_text"]:
     st.markdown("---")
-    st.header("📊 第三步：焦點詞彙的量化文本分析")
+    st.header("📊 第二步：焦點詞彙的量化文本分析")
     
     full_text = st.session_state["full_text"]
     keywords = st.session_state.get("user_keywords", [])
