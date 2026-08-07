@@ -52,6 +52,7 @@ def refine_taiwan_terms(text: str) -> str:
     if not text:
         return ""
         
+    # 可在此處針對常見誤聽進行精確正則校正 (例如常見的機率性連讀誤字)
     replacements = {
         r"陸委會": "陸委會",
         r"海基會": "海基會",
@@ -87,21 +88,20 @@ with st.expander("⚙️ 高級設定：語意與政治名詞 Prompt 導引 (可
 uploaded_file = st.file_uploader("請上傳議會開會 MP3 音訊檔", type=["mp3", "wav", "m4a"])
 
 # ==========================================
-# 5. 執行語音辨識 logic (保持上個版本的最佳參數)
+# 5. 執行語音辨識 logic
 # ==========================================
 if uploaded_file is not None:
     st.audio(uploaded_file, format="audio/mp3")
 
     if st.button("🚀 開始精準辨識轉檔", type="primary"):
-        tmp_path = None
-        try:
-            # 安全創建臨時檔案，避免檔名衝突與權限問題
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_path = tmp_file.name
+        # 建立臨時檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            tmp_path = tmp_file.name
 
-            with st.spinner("語音辨識中，請稍候 (CPU 運算中，依音訊長度需數十秒至數分鐘)..."):
-                # 完整保留上個版本的精準度參數組合
+        with st.spinner("語音辨識中，請稍候 (CPU 運算中，依音訊長度需數十秒至數分鐘)..."):
+            try:
+                # 執行語音辨識 (搭配精準度參數組合)
                 segments, info = model.transcribe(
                     tmp_path,
                     beam_size=7,                      # Beam Search 設為 7，提高關鍵詞搜尋精準度
@@ -138,13 +138,10 @@ if uploaded_file is not None:
                     mime="text/plain"
                 )
 
-        except Exception as e:
-            st.error(f"❌ 轉檔過程中發生錯誤：{e}")
-        finally:
-            # 安全釋放臨時檔案與進行垃圾回收，避免記憶體洩漏引發 Oh no.
-            if tmp_path and os.path.exists(tmp_path):
-                try:
+            except Exception as e:
+                st.error(f"❌ 轉檔過程中發生錯誤：{e}")
+            finally:
+                # 釋放記憶體與刪除臨時檔
+                if os.path.exists(tmp_path):
                     os.remove(tmp_path)
-                except Exception:
-                    pass
-            gc.collect()
+                gc.collect()
