@@ -163,7 +163,7 @@ def analyze_corpus(full_text: str, keywords: list, segments: list, window_size: 
 # ==========================================
 # 4. UI 輸入區（關鍵詞自動預設判斷）
 # ==========================================
-st.subheader("🎯 第一步：設定分析焦點與關注關鍵詞")
+st.subheader("🎯 設定分析焦點與關注關鍵詞")
 
 user_keywords_input = st.text_input(
     "請輸入研究關注詞彙（多個詞請用「逗號」隔開，留空將使用系統預設詞）：",
@@ -289,7 +289,7 @@ if "full_text" in st.session_state:
     # 7. 語料庫與語言學分析 (可動態隨 UI 關鍵詞更新)
     # ==========================================
     st.markdown("---")
-    st.header("📊 第二步：語言學語料庫分析 (Corpus Analysis)")
+    st.header("📊 語言學語料庫分析 (Corpus Analysis)")
 
     window_size = st.slider("KWIC 語境視窗長度 (前後字數)：", min_value=3, max_value=15, value=5)
 
