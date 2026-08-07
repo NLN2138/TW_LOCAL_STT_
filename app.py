@@ -17,24 +17,30 @@ st.set_page_config(
     layout="wide"
 )
 
-# 透過自訂 CSS 置頂固定頁首標題，並調優字體、間距與標題層級
+# 透過自訂 CSS 置頂固定頁首標題，並隱藏原生上方空白
 st.markdown("""
     <style>
+    /* 隱藏 Streamlit 原生頂部 Header 區塊邊界，確保網頁完全頂格 */
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
+        z-index: 100000 !important;
+    }
+
     /* 固定頂部標題區塊 */
     .header-container {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        background-color: #0E1117; /* 搭配預設深色背景，滾動時內容不會透出 */
-        padding: 1.5rem 5rem 1rem 5rem;
+        background-color: #0E1117; /* 搭配深色背景，滾動時內容不會透出 */
+        padding: 1.2rem 5rem 1rem 5rem;
         z-index: 99999;
         border-bottom: 1px solid #1E293B;
     }
 
-    /* 調整全局容器頂部邊界，避免內容被固定的 Header 遮擋 */
+    /* 調整全局容器頂部邊界，推開下方內容以避開 fixed 的頁首 */
     .block-container {
-        padding-top: 130px !important;
+        padding-top: 140px !important;
         padding-bottom: 3rem;
         max-width: 1200px;
     }
