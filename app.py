@@ -12,12 +12,12 @@ from faster_whisper import WhisperModel
 # 1. 頁面與 UI 基本配置
 # ==========================================
 st.set_page_config(
-    page_title="台灣政治言談語音轉文字與語料庫分析系統",
+    page_title="台灣政治言談語音轉文字與語料庫分析系統 v1.0 (雛形)",
     page_icon="🎙️",
     layout="wide"
 )
 
-st.title("🎙️ 台灣政治言談語音轉文字與語料庫分析系統")
+st.title("🎙️ 台灣政治言談語音轉文字與語料庫分析系統 v1.0 (雛形)")
 st.markdown("本系統專為**語言學與政治言談研究**設計，整合 faster-whisper ASR 與語料庫統計工具 (PMM, KWIC, TF-IDF)。")
 
 try:
