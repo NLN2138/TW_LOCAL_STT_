@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 透過自訂 CSS 調優字體、間距與標題層級
+# 透過自訂 CSS 調優字體、間距與標題層級（標題顏色為白色）
 st.markdown("""
     <style>
     /* 調整全局容器邊界與背景 */
@@ -27,41 +27,42 @@ st.markdown("""
         max-width: 1200px;
     }
     
-    /* 大標題樣式 */
+    /* 大標題樣式 - 純白 */
     .main-title {
         font-size: 2.2rem !important;
         font-weight: 700 !important;
-        color: #1E293B;
+        color: #FFFFFF !important;
         margin-bottom: 0.2rem !important;
     }
+    /* 副標題樣式 - 淺灰白 */
     .sub-title {
         font-size: 1.05rem !important;
-        color: #64748B;
+        color: #E2E8F0 !important;
         margin-bottom: 1.8rem !important;
     }
 
-    /* 區塊標題（Section Titles）樣式 */
+    /* 區塊標題（Section Titles）樣式 - 純白 */
     .section-header {
         font-size: 1.35rem !important;
         font-weight: 600 !important;
-        color: #0F172A;
-        border-left: 4px solid #2563EB;
+        color: #FFFFFF !important;
+        border-left: 4px solid #3B82F6;
         padding-left: 0.6rem;
         margin-top: 1.2rem !important;
         margin-bottom: 1.0rem !important;
     }
 
-    /* 調整 Expander 區塊高度與外觀 */
+    /* 調整 Expander 區塊標題文字顏色為亮白 */
     .streamlit-expanderHeader {
         font-weight: 600;
-        color: #334155;
+        color: #F8FAFC !important;
     }
     
     /* 微調分隔線間距 */
     hr {
         margin-top: 1.8rem !important;
         margin-bottom: 1.8rem !important;
-        border-color: #E2E8F0 !important;
+        border-color: #334155 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -101,16 +102,29 @@ except Exception as e:
 # 3. 核心語言學處理函數
 # ==========================================
 def refine_taiwan_terms(text: str) -> str:
+    """
+    優化政治與在地術語：
+    1. 統一文字異體字（優先將「臺灣」統一替換為「台灣」）
+    2. 優先替換長字詞（如「中華民國」、「中國大陸」），避免被短字詞拆解
+    """
     if not text:
         return ""
-    replacements = {
-        r"陸委會": "陸委會",
-        r"海基會": "海基會",
-        r"中華民國": "中華民國",
-        r"中國大陸": "中國大陸",
-    }
-    for pattern, repl in replacements.items():
+    
+    # 步驟 1: 異體字統一標準化
+    text = text.replace("臺灣", "台灣")
+    
+    # 步驟 2: 長詞優先正則與對應（確保中華民國、中國大陸不被誤校正）
+    replacements = [
+        (r"中華民國", "中華民國"),
+        (r"中國大陸", "中國大陸"),
+        (r"大陸委員會|陸委會", "陸委會"),
+        (r"海峽交流基金會|海基會", "海基會"),
+        (r"台灣", "台灣"),
+    ]
+    
+    for pattern, repl in replacements:
         text = re.sub(pattern, repl, text)
+        
     return text
 
 def generate_srt(segments) -> str:
@@ -129,11 +143,15 @@ def analyze_corpus_descriptive(full_text: str, keywords: list, segments: list, w
     clean_char_text = re.sub(r"[^\w]", "", full_text)
     total_chars = len(clean_char_text)
     
+    # 動態註冊關注重點詞與政治專有名詞，避免 jieba 誤切
     for kw in keywords:
         if kw:
             jieba.add_word(kw)
     jieba.add_word("中華民國")
     jieba.add_word("中國大陸")
+    jieba.add_word("台灣")
+    jieba.add_word("陸委會")
+    jieba.add_word("海基會")
     
     raw_tokens = [w.strip() for w in jieba.cut(full_text) if w.strip() and re.match(r"[\u4e00-\u9fa5a-zA-Z0-9]+", w)]
     total_tokens = len(raw_tokens)
