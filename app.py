@@ -1,48 +1,41 @@
 import os
 import tempfile
 import gc
-import torch
 import streamlit as st
-from transformers import pipeline
+from faster_whisper import WhisperModel
 
 # 1. 頁面設定
 st.set_page_config(
-    page_title="台灣政治言談語音轉文字系統 (聯發科 Breeze-ASR)",
+    page_title="台灣政治言談語音轉文字系統 (faster-whisper)",
     page_icon="🎙️",
     layout="wide"
 )
 
 st.title("🎙️ 台灣政治言談語音轉文字 (ASR) 工具")
-st.markdown("本工具採用 **MediaTek Research Breeze-ASR** 模型，專為台灣口音、中台語夾雜與地方語境優化。")
+st.markdown("本系統採用 **faster-whisper (int8 量化)**，已專為 CPU 伺服器進行記憶體與速度優化。")
 
-# 2. 模型載入機制 (使用 cache 防止重複載入)
+# 2. 載入模型 (使用 int8 量化，記憶體低於 2GB)
 @st.cache_resource
-def load_asr_pipeline():
-    model_id = "MediaTek-Research/Breeze-ASR-25"
+def load_whisper_model():
+    # 推薦選用 "medium" 或 "small"，在免費 CPU 上兼具精準度與速度
+    model_size = "medium"
     
-    # 判斷硬體環境
-    is_cuda = torch.cuda.is_available()
-    device = "cuda:0" if is_cuda else "cpu"
-    torch_dtype = torch.float16 if is_cuda else torch.float32
-
-    st.info(f"正在載入模型 `{model_id}` (運行平台: {device.upper()})...")
-    
-    pipe = pipeline(
-        "automatic-speech-recognition",
-        model=model_id,
-        torch_dtype=torch_dtype,
-        device=device,
-        chunk_length_s=30,      # 音訊分區長度
-        stride_length_s=(4, 2),  # 重疊滑動視窗
+    # device="cpu", compute_type="int8" 是 CPU 提速與防崩潰的關鍵
+    model = WhisperModel(
+        model_size, 
+        device="cpu", 
+        compute_type="int8",
+        cpu_threads=4  # 配合 Streamlit Cloud 的 CPU 核心數
     )
-    return pipe
+    return model
 
 # 載入模型
 try:
-    asr_pipe = load_asr_pipeline()
+    with st.spinner("正在載入語音辨識模型 (僅初次載入需數秒)..."):
+        model = load_whisper_model()
     st.success("模型載入成功！")
 except Exception as e:
-    st.error(f"模型載入失敗，可能因記憶體不足被系統強制終止：{e}")
+    st.error(f"模型載入失敗：{e}")
     st.stop()
 
 # 3. 檔案上傳介面
@@ -50,52 +43,43 @@ uploaded_file = st.file_uploader("請上傳議會開會 MP3 音訊檔", type=["m
 
 if uploaded_file is not None:
     st.audio(uploaded_file, format="audio/mp3")
-    
-    # 上傳檔案預警：免費 CPU 建議控制在 10 分鐘以內
-    file_size_mb = uploaded_file.size / (1024 * 1024)
-    if file_size_mb > 15:
-        st.warning(f"⚠️ 上傳檔案較大 ({file_size_mb:.1f} MB)，在免費 CPU 伺服器上運算可能需要較長時間或遭遇記憶體限制。")
 
     if st.button("🚀 開始辨識轉檔", type="primary"):
+        # 寫入臨時檔案
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             tmp_file.write(uploaded_file.read())
             tmp_path = tmp_file.name
 
-        with st.spinner("語音辨識中（CPU 算力較慢，請耐心等候）..."):
+        with st.spinner("語音辨識中，請稍候..."):
             try:
                 # 執行語音辨識
-                result = asr_pipe(
-                    tmp_path, 
-                    return_timestamps=True,
-                    batch_size=1, # 控制 batch 大小以極致節省 RAM
-                    generate_kwargs={
-                        "language": "zh", 
-                        "task": "transcribe",
-                        # 加入台灣議會 Context 提示詞，提升專有名詞辨識力
-                        "prompt": "以下為台灣縣市議會質詢對話，包含議員、局處首長、地方建設與預算案討論。"
-                    }
+                # initial_prompt 傳入議會與台灣地方語境，大幅提升專有名詞辨識率
+                segments, info = model.transcribe(
+                    tmp_path,
+                    beam_size=5,
+                    language="zh",
+                    initial_prompt="以下為台灣縣市議會質詢對話，包含議員、局處首長、預算案與地方建設討論。"
                 )
-                
-                full_text = result.get("text", "")
-                chunks = result.get("chunks", [])
 
                 st.subheader("📝 辨識結果")
                 
-                # 分段顯示時間軸
+                full_text_list = []
+                
+                # 邊辨識邊以時間軸呈現
                 with st.expander("檢視逐字稿時間軸", expanded=True):
-                    if chunks:
-                        for chunk in chunks:
-                            timestamp = chunk.get("timestamp")
-                            text = chunk.get("text", "")
-                            if timestamp and len(timestamp) == 2 and timestamp[0] is not None and timestamp[1] is not None:
-                                start, end = timestamp
-                                st.markdown(f"**[{int(start//60):02d}:{int(start%60):02d} - {int(end//60):02d}:{int(end%60):02d}]** {text}")
-                            else:
-                                st.markdown(f"{text}")
-                    else:
-                        st.write(full_text)
+                    for segment in segments:
+                        start = segment.start
+                        end = segment.end
+                        text = segment.text
+                        
+                        full_text_list.append(text)
+                        
+                        # 即時列出分段時間軸
+                        st.markdown(f"**[{int(start//60):02d}:{int(start%60):02d} - {int(end//60):02d}:{int(end%60):02d}]** {text}")
 
-                # 下載按鈕
+                full_text = "\n".join(full_text_list)
+
+                # 提供完整逐字稿下載
                 st.download_button(
                     label="💾 下載完整 txt 逐字稿",
                     data=full_text,
@@ -104,9 +88,9 @@ if uploaded_file is not None:
                 )
 
             except Exception as e:
-                st.error(f"轉檔過程中發生錯誤（可能是記憶體超限）：{e}")
+                st.error(f"轉檔過程中發生錯誤：{e}")
             finally:
-                # 清除檔案與強制進行垃圾回收 (GC) 釋放記憶體
+                # 記憶體回收
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
                 gc.collect()
