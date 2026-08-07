@@ -3,30 +3,28 @@ import tempfile
 import gc
 import re
 import io
-import math
 from collections import Counter
 import streamlit as st
 import pandas as pd
-import scipy.stats as stats
 from faster_whisper import WhisperModel
 
 # ==========================================
 # 1. 頁面與 UI 基本配置
 # ==========================================
 st.set_page_config(
-    page_title="台灣政治言談語音轉文字與語料庫分析系統 v1.1 (含統計檢定)",
+    page_title="台灣政治言談語音轉文字與語料庫分析系統 v1.1",
     page_icon="🎙️",
     layout="wide"
 )
 
 st.title("🎙️ 台灣政治言談語音轉文字與語料庫分析系統 v1.1")
-st.markdown("本系統專為**語言學與政治言談研究**設計，整合 faster-whisper ASR、KWIC 語境檢索與**卡方檢定 / Log-Likelihood 統計顯著性分析**。")
+st.markdown("本系統專為**語言學與政治言談研究**設計，整合 faster-whisper ASR、KWIC 語境檢索與**客觀敘述性統計分析 (PMM, TF-IDF)**。")
 
 try:
     import jieba
     from sklearn.feature_extraction.text import TfidfVectorizer
 except ImportError:
-    st.error("未安裝必要套件，請於 requirements.txt 加入 jieba, scikit-learn 與 scipy。")
+    st.error("未安裝必要套件，請於 requirements.txt 加入 jieba 與 scikit-learn。")
 
 DEFAULT_STOPWORDS = set([
     "這個", "那個", "我們", "你們", "他們", "因為", "所以", "但是", "然後", "如果",
@@ -51,7 +49,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 3. 核心語言學與推論統計函數
+# 3. 核心語言學與敘述統計函數
 # ==========================================
 def refine_taiwan_terms(text: str) -> str:
     if not text:
@@ -78,26 +76,8 @@ def generate_srt(segments) -> str:
         srt_output.append(f"{i}\n{timestamp}\n{seg['text']}\n")
     return "\n".join(srt_output)
 
-def calculate_log_likelihood(O1, N1, expected_prop=0.001):
-    """
-    計算單一詞彙相較於語料庫基準的 Log-Likelihood (LL Value)
-    O1: 該詞出現次數
-    N1: 總 Token 數
-    """
-    if O1 == 0 or N1 == 0:
-        return 0.0, 1.0
-    
-    E1 = N1 * expected_prop
-    if E1 == 0:
-        return 0.0, 1.0
-
-    # G-square / Log-Likelihood 算式
-    ll = 2 * (O1 * math.log(O1 / E1)) if O1 > 0 else 0.0
-    p_val = 1 - stats.chi2.cdf(ll, df=1)
-    return round(ll, 2), p_val
-
-def analyze_corpus_with_stats(full_text: str, keywords: list, segments: list, window_size: int = 5):
-    """精確語料庫統計 + 推論統計檢定 (Chi-Square & Log-Likelihood)"""
+def analyze_corpus_descriptive(full_text: str, keywords: list, segments: list, window_size: int = 5):
+    """純粹敘述性統計：計算基礎詞頻、PMM、KWIC 與 TF-IDF"""
     clean_char_text = re.sub(r"[^\w]", "", full_text)
     total_chars = len(clean_char_text)
     
@@ -113,44 +93,25 @@ def analyze_corpus_with_stats(full_text: str, keywords: list, segments: list, wi
     if total_tokens == 0:
         return None
 
+    # 1. 詞頻與 PMM (敘述統計)
     token_counts = Counter(raw_tokens)
     kw_stats = []
     kwic_results = []
-    observed_counts = []
 
     for kw in keywords:
         kw = kw.strip()
         if not kw:
             continue
         count = token_counts.get(kw, 0)
-        observed_counts.append(count)
-        
-        # 1. PMM 計算
         pmm = (count / total_tokens) * 1_000_000 if total_tokens > 0 else 0.0
         
-        # 2. Log-Likelihood (LL) 檢索計算
-        ll_score, p_val = calculate_log_likelihood(count, total_tokens)
-        
-        # 顯著性標籤判定
-        if p_val < 0.001:
-            sig_label = "*** (p < 0.001)"
-        elif p_val < 0.01:
-            sig_label = "** (p < 0.01)"
-        elif p_val < 0.05:
-            sig_label = "* (p < 0.05)"
-        else:
-            sig_label = "ns (不顯著)"
-
         kw_stats.append({
             "關注關鍵詞": kw,
-            "出現次數 (O)": count,
-            "百萬詞頻 (PMM)": round(pmm, 2),
-            "Log-Likelihood (LL)": ll_score,
-            "p-value": round(p_val, 4),
-            "顯著性標註": sig_label
+            "出現次數 (Raw Frequency)": count,
+            "百萬詞頻 (PMM)": round(pmm, 2)
         })
 
-        # 3. KWIC 檢索構建
+        # 2. KWIC 語境檢索構建
         for i, token in enumerate(raw_tokens):
             if token == kw:
                 left_context = "".join(raw_tokens[max(0, i - window_size):i])
@@ -162,14 +123,7 @@ def analyze_corpus_with_stats(full_text: str, keywords: list, segments: list, wi
                     "右語境 (Right Context)": right_context
                 })
 
-    # 4. 全局單一樣本卡方檢定 (Goodness-of-Fit Test for Keywords Distribution)
-    chi2_stat, chi2_p = None, None
-    if len(observed_counts) > 1 and sum(observed_counts) > 0:
-        chi2_res = stats.chisquare(observed_counts)
-        chi2_stat = round(chi2_res.statistic, 2)
-        chi2_p = round(chi2_res.pvalue, 4)
-
-    # 5. TF-IDF
+    # 3. TF-IDF 實詞排名
     sentences = [s.strip() for s in re.split(r"[。！？\n]", full_text) if len(s.strip()) > 5]
     top_tfidf_words = []
     if sentences:
@@ -198,8 +152,6 @@ def analyze_corpus_with_stats(full_text: str, keywords: list, segments: list, wi
         "total_duration": round(total_duration, 1),
         "wpm": round(wpm, 1),
         "kw_summary": pd.DataFrame(kw_stats),
-        "chi2_stat": chi2_stat,
-        "chi2_p": chi2_p,
         "kwic": pd.DataFrame(kwic_results),
         "tfidf": pd.DataFrame(top_tfidf_words, columns=["主題詞", "TF-IDF 權重分"])
     }
@@ -324,14 +276,14 @@ if "full_text" in st.session_state:
             st.markdown(f"**[{s_m:02d}:{s_s:02d} - {e_m:02d}:{e_s:02d}]** {seg['text']}")
 
     # ==========================================
-    # 7. 語料庫與推論統計分析模組
+    # 7. 語料庫敘述統計分析模組
     # ==========================================
     st.markdown("---")
-    st.header("📊 第二步：語料庫推論統計分析 (Inferential Corpus Statistics)")
+    st.header("📊 第二步：語料庫敘述統計分析 (Descriptive Corpus Statistics)")
 
     window_size = st.slider("KWIC 語境視窗長度 (前後字數)：", min_value=3, max_value=15, value=5)
 
-    stats = analyze_corpus_with_stats(full_text, current_keywords, segments, window_size)
+    stats = analyze_corpus_descriptive(full_text, current_keywords, segments, window_size)
 
     if stats:
         # 1. 語料庫基礎指標
@@ -342,34 +294,23 @@ if "full_text" in st.session_state:
         c3.metric("錄音總時長", f"{stats['total_duration']} 秒")
         c4.metric("平均語速 (CPM)", f"{stats['wpm']} 字/分")
 
-        # 2. PMM 與 Log-Likelihood (LL) 檢定看板
-        st.subheader("2. 關注詞出現頻率與 Log-Likelihood (LL) 統計檢定")
+        # 2. PMM 統計
+        st.subheader("2. 關注詞出現頻率與百萬詞頻 (PMM)")
         if not stats["kw_summary"].empty:
             k1, k2 = st.columns([3, 2])
             with k1:
                 st.dataframe(stats["kw_summary"], hide_index=True, use_container_width=True)
             with k2:
-                st.bar_chart(stats["kw_summary"].set_index("關注關鍵詞")["Log-Likelihood (LL)"])
-            
-            st.caption("註：**Log-Likelihood (LL) > 3.84** 代表達到 $p < 0.05$ 統計顯著水準，數值越高代表該關鍵詞在語料庫中的顯著偏好程度越強。")
+                st.bar_chart(stats["kw_summary"].set_index("關注關鍵詞")["百萬詞頻 (PMM)"])
 
-        # 3. 多詞關聯卡方檢定 (Chi-Square Test)
-        if stats["chi2_stat"] is not None:
-            st.markdown("#### ⚖️ 關注詞群總體分布卡方檢定 (Chi-Square Goodness-of-Fit Test)")
-            chi_col1, chi_col2 = st.columns(2)
-            chi_col1.metric("Chi-Square 統計量 (χ²)", f"{stats['chi2_stat']}")
-            
-            p_val_display = f"{stats['chi2_p']} (顯著偏向)" if stats['chi2_p'] < 0.05 else f"{stats['chi2_p']} (分布均勻)"
-            chi_col2.metric("p-value", p_val_display)
-
-        # 4. KWIC 關鍵詞語境檢索
+        # 3. KWIC 關鍵詞語境檢索
         st.subheader("3. KWIC 關鍵詞語境檢索 (Key Word in Context)")
         if not stats["kwic"].empty:
             st.dataframe(stats["kwic"], use_container_width=True)
         else:
             st.info("未在語料庫中找到關注關鍵詞的上下文。")
 
-        # 5. TF-IDF
+        # 4. TF-IDF
         st.subheader("4. 實詞 TF-IDF 權重排名 (已過濾虛詞/停用詞)")
         if not stats["tfidf"].empty:
             t1, t2 = st.columns([2, 1])
@@ -378,8 +319,8 @@ if "full_text" in st.session_state:
             with t2:
                 st.dataframe(stats["tfidf"], hide_index=True, use_container_width=True)
 
-        # 6. 打包匯出含統計結果的完整 CSV
-        st.subheader("5. 匯出語言學推論統計報告")
+        # 5. 打包匯出 CSV
+        st.subheader("5. 匯出語言學研究報表")
         csv_buffer = io.StringIO()
         csv_buffer.write("=== 語料庫基本屬性 ===\n")
         pd.DataFrame([{
@@ -389,12 +330,8 @@ if "full_text" in st.session_state:
             "平均語速(字/分)": stats['wpm']
         }]).to_csv(csv_buffer, index=False)
         
-        csv_buffer.write("\n=== 關注詞頻、PMM 與 Log-Likelihood 檢定 ===\n")
+        csv_buffer.write("\n=== 關注詞頻與 PMM 敘述統計 ===\n")
         stats["kw_summary"].to_csv(csv_buffer, index=False)
-        
-        if stats["chi2_stat"] is not None:
-            csv_buffer.write("\n=== 全局卡方檢定 ===\n")
-            pd.DataFrame([{"Chi2_Statistic": stats['chi2_stat'], "p_value": stats['chi2_p']}]).to_csv(csv_buffer, index=False)
 
         csv_buffer.write("\n=== KWIC 語境檢索表 ===\n")
         stats["kwic"].to_csv(csv_buffer, index=False)
@@ -403,8 +340,19 @@ if "full_text" in st.session_state:
         stats["tfidf"].to_csv(csv_buffer, index=False)
 
         st.download_button(
-            "📊 下載完整語言學統計報告 (CSV)",
+            "📊 下載完整語言學敘述統計報告 (CSV)",
             data=csv_buffer.getvalue().encode('utf-8-sig'),
-            file_name=f"{os.path.splitext(st.session_state['file_name'])[0]}_statistical_linguistic_report.csv",
+            file_name=f"{os.path.splitext(st.session_state['file_name'])[0]}_descriptive_linguistic_report.csv",
             mime="text/csv"
         )
+
+# ==========================================
+# 8. 系統與學術免責聲明 (頁尾)
+# ==========================================
+st.markdown("---")
+st.caption("""
+**⚠️ 免責聲明 (Disclaimer) 與使用須知：**
+1. **ASR 辨識精準度限制**：本系統採用自動語音辨識技術 (Faster-Whisper/ASR)，辨識結果受錄音品質、重疊發音、地方口音與背景雜音影響。逐字稿內容僅供學術研究與初步參考，正式研究引用前請務必進行人工校對。
+2. **數據統計說明**：本系統提供之詞頻、PMM (Per Million Marks) 及 TF-IDF 為基於自動斷詞工具 (Jieba) 之客觀敘述性統計結果，不包含推論統計或價值判斷。
+3. **個人資料與著作權**：使用者上傳之音訊檔應確保符合個人資料保護法及相關著作權規範，本系統伺服器不會永久儲存使用者上傳之原始影音檔案。
+""")
